@@ -5,21 +5,29 @@ let surfaceAnimation;
 let specMap = [];
 
 window.onload = function() {
-    canvas = document.querySelector("canvas");
+    canvas = document.getElementById("surface");
     ctx = canvas.getContext("2d");
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    // TODO: this will probably have to be cropped every time the browser resizes :^(
     for (let segmentIdx = 0; segmentIdx < canvas.height; segmentIdx++) {
         specMap[segmentIdx] = new Uint8Array(canvas.width);
     }
 
-    surface = new Surface(ctx, canvas.width, canvas.height);
-    // const defaultBrush = new CircularBrush(20, "white");
     const defaultBrush = new Testing_SinBrush(20, "white");
-    surface.addEntity(defaultBrush);
+    surface = new Surface(ctx, canvas.width, canvas.height, defaultBrush);
+
+    canvas.onmousedown=function(e){
+        
+        document.onmousemove=function(e){
+            mouse.x = e.x - canvas.offsetLeft; 
+            mouse.y = e.y - canvas.offsetTop;
+
+            surface.drawCurrentBrush(mouse.x, mouse.y);
+        } 
+        document.onmouseup=function(){
+            document.onmousemove=null;
+        }
+        document.onmousemove(e);
+    }
     surface.animate(0);
 }
 
@@ -28,19 +36,10 @@ const mouse = {
     y: 0,
 }
 
-window.addEventListener("mousemove", function(e) {
-    mouse.x = e.x;
-    mouse.y = e.y;
-});
 
 window.addEventListener("resize", function() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    surface = new Surface(ctx, canvas.width, canvas.height);
-    // const defaultBrush = new CircularBrush(20, "white");
     const defaultBrush = new Testing_SinBrush(20, "white");
-    surface.addEntity(defaultBrush);
+    surface = new Surface(ctx, canvas.width, canvas.height, defaultBrush);
     surface.animate(0);
 });
 
@@ -48,22 +47,24 @@ class Surface {
     #lastTime;
     #interval;
     #timer;
-    #entities;
-    #len;
+    #currentBrush;
 
-    constructor(ctx, width, height) {
+    constructor(ctx, width, height, initialBrush) {
         this.ctx = ctx;
         this.width = width;
         this.height = height;
         this.#lastTime = 0;
         this.#interval = 1000/60;
         this.#timer = 0;
-        this.#entities = [];
-        this.#len = 0;
+        this.#currentBrush = initialBrush;
     }
 
-    addEntity(entity) {
-        this.#len = this.#entities.push(entity)
+    setCurrentBrush(brush) {
+        this.#currentBrush = brush;
+    }
+
+    drawCurrentBrush(x, y) {
+        this.#currentBrush.draw(this.ctx, x, y);
     }
 
     animate(timeStamp) {
@@ -71,12 +72,6 @@ class Surface {
         this.#lastTime = timeStamp;
 
         if (this.#timer > this.#interval) {
-            // this.ctx.clearRect(0, 0, this.width, this.height);
-
-            for (let i = 0; i < this.#len; i++) {
-                this.#entities[i].draw(surface);
-            }
-
             this.#timer = 0;
         } else {
             this.#timer += dt;
@@ -91,7 +86,7 @@ class Brush {
         this.color = color;
     }
 
-    draw(surface) {
+    draw(ctx, x, y) {
         // ...
     }
 }
@@ -108,12 +103,12 @@ class CircularBrush extends Brush {
         return Math.min(255, oldAmplitude + delta);
     }
 
-    draw(surface) {
-        surface.ctx.fillStyle = this.color;
+    draw(ctx, x, y) {
+        ctx.fillStyle = this.color;
         for (let i = -this.radius; i <= this.radius; i++) {
             for (let j = -this.radius; j <= this.radius; j++) {
-                const offsetY = mouse.y + i;
-                const offsetX = mouse.x + j;
+                const offsetY = y + i;
+                const offsetX = x + j;
                 if (
                     (offsetY < surface.height) &&
                     (offsetY >= 0)             &&
@@ -124,12 +119,13 @@ class CircularBrush extends Brush {
                     const newAmplitude  = this.getNewAmplitude(oldAmplitude, i, j);
                     specMap[offsetY][offsetX] = newAmplitude;
 
+                    
                     // paint pixels
                     const h = newAmplitude / 1.3 + 250;
                     const l = newAmplitude / 2.55;
                     this.color = `hsl(${h},100%,${l}%)`
-                    surface.ctx.fillStyle = this.color;
-                    surface.ctx.fillRect(offsetX, offsetY, 1, 1);
+                    ctx.fillStyle = this.color;
+                    ctx.fillRect(offsetX, offsetY, 1, 1);
                 }
             }
         }
@@ -156,12 +152,12 @@ class Testing_SinBrush extends Brush {
         return Math.min(255, oldAmplitude + delta);
     }
 
-    draw(surface) {
-        surface.ctx.fillStyle = this.color;
+    draw(ctx, x, y) {
+        ctx.fillStyle = this.color;
         for (let i = -this.radius, ki = 0; i <= this.radius; i++, ki++) {
             for (let j = -this.radius, kj = 0; j <= this.radius; j++, kj++) {
-                const offsetY = mouse.y + i;
-                const offsetX = mouse.x + j;
+                const offsetY = y + i;
+                const offsetX = x + j;
 
                 //  Suggestion: maybe make this a function
                 if (
@@ -178,8 +174,8 @@ class Testing_SinBrush extends Brush {
                     const h = newAmplitude / 1.3 + 250;
                     const l = newAmplitude / 2.55;
                     this.color = `hsl(${h},100%,${l}%)`
-                    surface.ctx.fillStyle = this.color;
-                    surface.ctx.fillRect(offsetX, offsetY, 1, 1);
+                    ctx.fillStyle = this.color;
+                    ctx.fillRect(offsetX, offsetY, 1, 1);
                 }
             }
         }
